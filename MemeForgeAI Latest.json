@@ -1,0 +1,453 @@
+{
+  "name": "MemeForgeAI",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1280,
+        -448
+      ],
+      "id": "cf4cf9be-dbb8-4ad1-b77a-d1e92c1d0b90",
+      "name": "Telegram Trigger",
+      "webhookId": "68adfd3b-a64f-4b72-bdf6-439df62322e8",
+      "credentials": {
+        "telegramApi": {
+          "id": "RyYlxQwvLXWnpqLD",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "da4c933d-ad48-4993-8791-51bc74d9d3bd",
+              "name": "=topic",
+              "value": "={{$json[\"message\"][\"text\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1120,
+        -448
+      ],
+      "id": "869fb822-b9da-4ab2-a144-5d3da67d3908",
+      "name": "Extract Topic",
+      "notesInFlow": true,
+      "notes": "User's Message is extracted"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a single short and witty 2-line meme caption for the topic \"{{ $('Extract Topic').item.json.topic }}\", using the meme template \"{{ $('Suggest Meme Template').item.json.text }}\". \n\nOnly return the caption, with no explanation or alternatives. Avoid long versions. Keep it informal and punchy.\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        0,
+        -448
+      ],
+      "id": "674ef0bd-286f-43ef-b230-868cafb753c9",
+      "name": "Generate Meme Caption"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json.text;\n\n// 1. Extract the first actual quoted sentence (not apostrophes)\nconst quotedMatch = response.match(/[\"“”]([^\"“”]+)[\"“”]/);\nlet caption;\n\nif (quotedMatch && quotedMatch[1]) {\n  caption = quotedMatch[1].trim();\n} else {\n  // 2. No clean quote? Use first non-empty line (likely the whole input)\n  caption = response.split(\"\\n\").find(line => line.trim()) || \"Meme caption\";\n  caption = caption.trim();\n}\n\n// 3. Smart sentence split\nlet text0 = caption;\nlet text1;\n\n// Split by sentence-ending punctuation\nconst sentenceSplit = caption.match(/^(.+?[.!?])\\s+(.+)/);\nif (sentenceSplit && sentenceSplit.length >= 3) {\n  text0 = sentenceSplit[1].trim();\n  text1 = sentenceSplit[2].trim();\n} else {\n  // Try comma split if sentence split fails\n  const commaSplit = caption.split(\",\");\n  if (commaSplit.length >= 2) {\n    text0 = commaSplit[0].trim() + \",\";\n    text1 = commaSplit.slice(1).join(\",\").trim();\n  } else {\n    // Fallback: keep whole thing as top, and use a witty default\n    text0 = caption;\n    const fallbackEndings = [\n      \"Still true.\",\n      \"Don't @ me.\",\n      \"You know it's right.\",\n      \"And I'm not sorry.\",\n      \"Let that sink in.\"\n    ];\n    text1 = fallbackEndings[Math.floor(Math.random() * fallbackEndings.length)];\n  }\n}\n\nreturn [\n  {\n    json: {\n      text0,\n      text1,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -448
+      ],
+      "id": "28382d8c-84e4-4313-8372-d8a743fac2eb",
+      "name": "Split Meme Caption"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a meme expert who knows the a lot of templates."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=Suggest a suitable meme template name for this situation:  {{ $('Extract Topic').item.json.topic }} Respond with only the meme template name."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -944,
+        -448
+      ],
+      "id": "fbae8a0a-970c-4393-8818-0d27f1bb3ad7",
+      "name": "Suggest Meme Template"
+    },
+    {
+      "parameters": {
+        "url": "https://api.imgflip.com/get_memes",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -592,
+        -448
+      ],
+      "id": "4542139d-e489-48a2-b603-ae6fef21c325",
+      "name": "Get Meme Templates"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "416eb853-a63b-4fae-9d15-d7126a854b5a",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "9447e564-c253-4cb4-b7c9-fec5f2007dc9",
+              "leftValue": "=",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        -448
+      ],
+      "id": "51bdd83c-4453-4c64-a738-1b6e674d0ca8",
+      "name": "Found the template?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.imgflip.com/caption_image",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text0",
+              "value": "={{ $json.text0 }}"
+            },
+            {
+              "name": "text1",
+              "value": "={{ $json.text1 }}"
+            },
+            {
+              "name": "username",
+              "value": "MelvinJoshua"
+            },
+            {
+              "name": "password",
+              "value": "Meme1234"
+            },
+            {
+              "name": "template_id",
+              "value": "={{ $json.template_id || $('Found the template?').item.json.template_id }}\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        -448
+      ],
+      "id": "af6aee88-9775-475e-a06c-1099158de5f2",
+      "name": "Create Meme"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fallbacks = [\n  { template_id: \"61520\", template_name: \"10 Guy\", text0: \"When AI goes on sleep mode…\", text1: \"…and still can't pick a real meme\" },\n  { template_id: \"4087833\", template_name: \"Waiting Skeleton\", text0: \"Still waiting for a valid template…\", text1: \"…but all I got was this skeleton\" },\n  { template_id: \"61579\", template_name: \"One Does Not Simply\", text0: \"One does not simply find…\", text1: \"…a perfect meme template\" },\n  { template_id: \"131087935\", template_name: \"Running Away Balloon\", text0: \"Model: suggests unknown template…\", text1: \"Me: walking away from bad choices\" },\n  { template_id: \"1035805\", template_name: \"Boardroom Meeting Suggestion\", text0: \"Boss: use witty meme names\", text1: \"Also boss: fallback to basics\" },\n  { template_id: \"101470\", template_name: \"Ancient Aliens\", text0: \"Aliens! Tell me why AI picks…\", text1: \"…templates nobody recognizes\" },\n];\n\nconst pick = fallbacks[Math.floor(Math.random() * fallbacks.length)];\nreturn [{ json: pick }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -96
+      ],
+      "id": "e04abf28-4794-4dff-972b-5bb11fd0744c",
+      "name": "Use Fallback Templates"
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -944,
+        -224
+      ],
+      "id": "5a323c53-cec7-46e2-9bf9-c45778827d01",
+      "name": "Groq Chat Model 1",
+      "credentials": {
+        "groqApi": {
+          "id": "rKykCoSBw47QLOF2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "options": {
+          "temperature": 0.9
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -240
+      ],
+      "id": "c6976718-8954-44f8-ac71-34a3ffa2a7ad",
+      "name": "Groq Chat Model 2",
+      "credentials": {
+        "groqApi": {
+          "id": "rKykCoSBw47QLOF2",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "file": "={{ $json.data.url }}",
+        "additionalFields": {
+          "caption": "=Here's your meme based on your message!"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        864,
+        -448
+      ],
+      "id": "a91aa9c0-dcdd-4428-84d4-aac3ef629376",
+      "name": "Send Finalized Meme",
+      "webhookId": "0c32207e-d516-424f-8609-f51d53a7fe94",
+      "credentials": {
+        "telegramApi": {
+          "id": "RyYlxQwvLXWnpqLD",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmTemplate = $('Suggest Meme Template').first().json.text.toLowerCase();\nconst memes = $input.first().json.data.memes;\n\nfunction levenshtein(a, b) {\n  const matrix = Array.from({ length: b.length + 1 }, (_, i) =>\n    Array.from({ length: a.length + 1 }, (_, j) =>\n      i === 0 ? j : j === 0 ? i : 0\n    )\n  );\n\n  for (let i = 1; i <= b.length; i++) {\n    for (let j = 1; j <= a.length; j++) {\n      const cost = b[i - 1] === a[j - 1] ? 0 : 1;\n      matrix[i][j] = Math.min(\n        matrix[i - 1][j] + 1,     // deletion\n        matrix[i][j - 1] + 1,     // insertion\n        matrix[i - 1][j - 1] + cost // substitution\n      );\n    }\n  }\n\n  return matrix[b.length][a.length];\n}\n\nfunction similarity(a, b) {\n  const distance = levenshtein(a, b);\n  const maxLen = Math.max(a.length, b.length);\n  return maxLen === 0 ? 1 : 1 - distance / maxLen;\n}\n\n// Score and find best match\nlet bestMatch = null;\nlet highestScore = 0;\n\nfor (const meme of memes) {\n  const name = meme.name.toLowerCase();\n  const score = similarity(llmTemplate, name);\n\n  if (score > highestScore) {\n    highestScore = score;\n    bestMatch = meme;\n  }\n}\n\nif (bestMatch && highestScore > 0.5) {\n  return [\n    {\n      json: {\n        template_id: bestMatch.id,\n        template_name: bestMatch.name,\n        similarity: highestScore.toFixed(2),\n        found: true,\n        match_type: 'fuzzy',\n      },\n    },\n  ];\n} else {\n  return [\n    {\n      json: {\n        found: false,\n        suggested_template: llmTemplate,\n      },\n    },\n  ];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -448
+      ],
+      "id": "0039eb9d-784a-4b07-864d-7d69ab1cf570",
+      "name": "Find Template ID from LLM's Suggestion"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Topic": {
+      "main": [
+        [
+          {
+            "node": "Suggest Meme Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Meme Caption": {
+      "main": [
+        [
+          {
+            "node": "Split Meme Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suggest Meme Template": {
+      "main": [
+        [
+          {
+            "node": "Get Meme Templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Meme Templates": {
+      "main": [
+        [
+          {
+            "node": "Find Template ID from LLM's Suggestion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Found the template?": {
+      "main": [
+        [
+          {
+            "node": "Generate Meme Caption",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Use Fallback Templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Meme Caption": {
+      "main": [
+        [
+          {
+            "node": "Create Meme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Meme": {
+      "main": [
+        [
+          {
+            "node": "Send Finalized Meme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Fallback Templates": {
+      "main": [
+        [
+          {
+            "node": "Create Meme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model 1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Suggest Meme Template",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Meme Caption",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Template ID from LLM's Suggestion": {
+      "main": [
+        [
+          {
+            "node": "Found the template?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3b7be62c-0eb8-458f-a179-2aeb6cd1280a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "13c5452e16aee726d5253e2973ab805a0f6caaaf851ee87a7a13e509ea2e4449"
+  },
+  "id": "pwAoQ5HuvKZEhaU0",
+  "tags": []
+}
